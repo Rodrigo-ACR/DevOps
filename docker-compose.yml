@@ -1,0 +1,90 @@
+
+
+services:
+
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  back-despachos:
+    build:
+      context: ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+      dockerfile: Dockerfile
+    container_name: back-despachos
+    restart: unless-stopped
+    environment:
+      DB_ENDPOINT: mysql-db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - backend-net
+      - frontend-net
+
+  back-ventas:
+    build:
+      context: ./back-Ventas_SpringBoot/Springboot-API-REST
+      dockerfile: Dockerfile
+    container_name: back-ventas
+    restart: unless-stopped
+    environment:
+      DB_ENDPOINT: mysql-db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - backend-net
+      - frontend-net
+
+  front-despacho:
+    build:
+      context: ./front_despacho
+      dockerfile: Dockerfile
+    container_name: front-despacho
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - back-despachos
+      - back-ventas
+    networks:
+      - frontend-net
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  backend-net:
+    driver: bridge
+  frontend-net:
+    driver: bridge
