@@ -1,7 +1,7 @@
 # Innovatech Chile — Sistema de Despachos y Ventas
 **ISY1101 — Introducción a Herramientas DevOps | Evaluación Parcial N°2**
 
-**Integrante:** Rodrigo Concha  
+**Integrante:** Rodrigo Concha / Benjamín Belmar
 **Profesor:** Israel Villagra
 
 ---
