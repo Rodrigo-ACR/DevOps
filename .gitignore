@@ -1,0 +1,11 @@
+# Terraform
+Terraform/.terraform/
+Terraform/*.tfstate
+Terraform/*.tfstate.backup
+Terraform/*.pem
+
+# Docker
+.env
+
+# Sistema
+.DS_Store

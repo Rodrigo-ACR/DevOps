@@ -1,0 +1,56 @@
+name: CI/CD - Frontend Despacho
+
+on:
+    push:
+        branches:
+            - deploy
+
+jobs:
+    build-push-deploy:
+        name: Build, Push y Deploy
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout código
+              uses: actions/checkout@v4
+
+            - name: Configurar credenciales AWS
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+                  aws-region: ${{ secrets.AWS_REGION }}
+
+            - name: Login a Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v2
+
+            - name: Build y Push imagen a ECR
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                  ECR_REPOSITORY: ${{ secrets.ECR_REPO_FRONTEND }}
+                  IMAGE_TAG: ${{ github.sha }}
+              run: |
+                  docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                    -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+                  docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+                  docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+            - name: Deploy en EC2
+              uses: appleboy/ssh-action@v1.0.3
+              with:
+                  host: ${{ secrets.EC2_PUBLIC_IP }}
+                  username: ec2-user
+                  key: ${{ secrets.EC2_SSH_KEY }}
+                  script: |
+                      aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+                        docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+                      docker stop front-despacho || true
+                      docker rm front-despacho || true
+                      docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
+                      docker run -d \
+                        --name front-despacho \
+                        --restart unless-stopped \
+                        -p 80:80 \
+                        ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
