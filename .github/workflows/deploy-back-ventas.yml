@@ -1,4 +1,4 @@
-name: CI/CD - Backend Despachos
+name: CI/CD - Backend Ventas
 
 on:
   push:
@@ -29,29 +29,29 @@ jobs:
       - name: Build y Push imagen a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPO_BACKEND }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPO_VENTAS }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+            ./back-Ventas_SpringBoot/Springboot-API-REST
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Deploy en EC2
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.EC2_HOST_BACKEND }}
+          host: ${{ secrets.EC2_PUBLIC_IP }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
               docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
-            docker stop back-despachos || true
-            docker rm back-despachos || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:latest
+            docker stop back-ventas || true
+            docker rm back-ventas || true
+            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_VENTAS }}:latest
             docker run -d \
-              --name back-despachos \
+              --name back-ventas \
               --restart unless-stopped \
               --network host \
               -e DB_ENDPOINT=localhost \
@@ -59,4 +59,4 @@ jobs:
               -e DB_NAME=${{ secrets.DB_NAME }} \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:latest
+              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_VENTAS }}:latest
