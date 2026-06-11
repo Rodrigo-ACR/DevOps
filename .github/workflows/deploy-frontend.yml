@@ -46,13 +46,14 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           command_timeout: 30m
           script: |
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-              docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+            cd /home/ec2-user
+            git clone https://github.com/Rodrigo-ACR/DevOps.git || git -C DevOps pull
+            cd DevOps
             docker stop front-despacho || true
             docker rm front-despacho || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
+            docker build -t front-despacho ./front_despacho
             docker run -d \
               --name front-despacho \
               --restart unless-stopped \
               --network host \
-              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
+              front-despacho
