@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - deploy
+    paths:
+      - "front_despacho/**"
+      - ".github/workflows/deploy-frontend.yml"
 
 jobs:
   build-push-deploy:
@@ -38,22 +41,33 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Deploy en EC2
+      # Pull desde ECR: el build se hace UNA vez en el runner de GitHub
+      # (potente) y la t3.micro solo descarga la imagen lista (~25MB nginx).
+      # Nada de git clone + npm ci en una instancia de 1GB de RAM.
+      - name: Deploy en EC2 (web, subred pública)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_PUBLIC_IP }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 30m
+          command_timeout: 20m
           script: |
-            cd /home/ec2-user
-            git clone https://github.com/Rodrigo-ACR/DevOps.git || git -C DevOps pull
-            cd DevOps
+            set -e
+
+            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
+              docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
+
             docker stop front-despacho || true
             docker rm front-despacho || true
-            docker build -t front-despacho ./front_despacho
+            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
+
+            # El proxy de nginx apunta a la EC2 de backends por su IP privada.
             docker run -d \
               --name front-despacho \
               --restart unless-stopped \
               --network host \
-              front-despacho
+              -e DESPACHOS_URL=http://${{ secrets.EC2_APP_PRIVATE_IP }}:8081 \
+              -e VENTAS_URL=http://${{ secrets.EC2_APP_PRIVATE_IP }}:8080 \
+              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
+
+            docker image prune -af

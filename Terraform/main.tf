@@ -187,6 +187,7 @@ resource "aws_instance" "ec2_web" {
   subnet_id              = aws_subnet.subred_web.id
   vpc_security_group_ids = [aws_security_group.sg_web.id]
   key_name               = aws_key_pair.key_pair.key_name
+  iam_instance_profile   = "LabInstanceProfile"
   tags                   = { Name = "ec2-web" }
 
   user_data = <<-EOF
@@ -212,6 +213,7 @@ resource "aws_instance" "ec2_app" {
   subnet_id              = aws_subnet.subred_app.id
   vpc_security_group_ids = [aws_security_group.sg_app.id]
   key_name               = aws_key_pair.key_pair.key_name
+  iam_instance_profile   = "LabInstanceProfile"
   tags                   = { Name = "ec2-app" }
 
   user_data = <<-EOF

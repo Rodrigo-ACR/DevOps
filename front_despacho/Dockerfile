@@ -12,7 +12,9 @@ RUN npm run build
 FROM nginx:stable-alpine AS runtime
 
 RUN rm /etc/nginx/conf.d/default.conf
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# El entrypoint de nginx procesa este template con envsubst al iniciar
+# el contenedor, usando DESPACHOS_URL y VENTAS_URL del entorno.
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 RUN chown -R nginx:nginx /usr/share/nginx/html && \

@@ -1,12 +1,12 @@
-name: CI/CD - Backend Despachos
+name: CI/CD - Backend Ventas
 
 on:
   push:
     branches:
       - deploy
     paths:
-      - "back-Despachos_SpringBoot/**"
-      - ".github/workflows/deploy-backend.yml"
+      - 'back-Ventas_SpringBoot/**'
+      - '.github/workflows/deploy-back-ventas.yml'
 
 jobs:
   build-push-deploy:
@@ -32,17 +32,15 @@ jobs:
       - name: Build y Push imagen a ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPO_BACKEND }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPO_VENTAS }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            ./back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+            ./back-Ventas_SpringBoot/Springboot-API-REST
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # La EC2 de backends está en la subred PRIVADA (10.0.2.x): GitHub Actions
-      # no puede llegar directo. Se usa la EC2 web pública como salto (jump host).
       - name: Deploy en EC2 (app, subred privada)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -56,12 +54,11 @@ jobs:
           script: |
             set -e
 
-            # Login a ECR usando el IAM role de la instancia (LabInstanceProfile).
-            # No requiere credenciales en la EC2 ni tokens de sesión.
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
               docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
 
-            # ── 1. Garantizar que MySQL esté corriendo ──────────────────
+            # MySQL debe existir (lo levanta el pipeline de despachos);
+            # si no está, se crea aquí también para que el orden no importe.
             if [ -z "$(docker ps -q -f name=^mysql-db$)" ]; then
               docker rm mysql-db 2>/dev/null || true
               docker run -d \
@@ -76,7 +73,6 @@ jobs:
                 mysql:8.0
             fi
 
-            # Esperar a que MySQL acepte conexiones (máx ~2 min)
             for i in $(seq 1 40); do
               if docker exec mysql-db mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
                 echo "MySQL listo"; break
@@ -84,12 +80,11 @@ jobs:
               echo "Esperando MySQL... ($i)"; sleep 3
             done
 
-            # ── 2. Desplegar backend despachos ──────────────────────────
-            docker stop back-despachos || true
-            docker rm back-despachos || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:latest
+            docker stop back-ventas || true
+            docker rm back-ventas || true
+            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_VENTAS }}:latest
             docker run -d \
-              --name back-despachos \
+              --name back-ventas \
               --restart unless-stopped \
               --network host \
               -e DB_ENDPOINT=127.0.0.1 \
@@ -97,7 +92,6 @@ jobs:
               -e DB_NAME=${{ secrets.DB_NAME }} \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
               -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:latest
+              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_VENTAS }}:latest
 
-            # Limpiar imágenes viejas para no llenar el disco de 8GB
             docker image prune -af

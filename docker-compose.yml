@@ -1,7 +1,4 @@
-
-
 services:
-
   mysql-db:
     image: mysql:8.0
     container_name: mysql-db
@@ -71,6 +68,11 @@ services:
       dockerfile: Dockerfile
     container_name: front-despacho
     restart: unless-stopped
+    environment:
+      # En compose, nginx llega a los backends por el nombre de servicio
+      # en la red interna de Docker, NO por localhost.
+      DESPACHOS_URL: http://back-despachos:8081
+      VENTAS_URL: http://back-ventas:8080
     ports:
       - "80:80"
     depends_on:
