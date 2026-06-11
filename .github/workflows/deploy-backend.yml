@@ -53,8 +53,8 @@ jobs:
             docker run -d \
               --name back-despachos \
               --restart unless-stopped \
-              -p 8081:8081 \
-              -e DB_ENDPOINT=${{ secrets.DB_ENDPOINT }} \
+              --network host \
+              -e DB_ENDPOINT=localhost \
               -e DB_PORT=3306 \
               -e DB_NAME=${{ secrets.DB_NAME }} \
               -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
