@@ -44,6 +44,7 @@ jobs:
           host: ${{ secrets.EC2_PUBLIC_IP }}
           username: ec2-user
           key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 30m
           script: |
             aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
               docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
@@ -53,5 +54,5 @@ jobs:
             docker run -d \
               --name front-despacho \
               --restart unless-stopped \
-              -p 80:80 \
+              --network host \
               ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_FRONTEND }}:latest
