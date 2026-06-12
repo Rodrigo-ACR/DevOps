@@ -7,6 +7,7 @@ on:
     paths:
       - "back-Despachos_SpringBoot/**"
       - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
 
 jobs:
   build-push-deploy:
@@ -62,6 +63,8 @@ jobs:
               docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
 
             # ── 1. Garantizar que MySQL esté corriendo ──────────────────
+            # A prueba de carreras: si el otro pipeline lo creó primero,
+            # el docker run falla pero el docker start lo levanta o ya está arriba.
             if [ -z "$(docker ps -q -f name=^mysql-db$)" ]; then
               docker rm mysql-db 2>/dev/null || true
               docker run -d \
@@ -73,7 +76,7 @@ jobs:
                 -e MYSQL_USER=${{ secrets.DB_USERNAME }} \
                 -e MYSQL_PASSWORD=${{ secrets.DB_PASSWORD }} \
                 -v mysql_data:/var/lib/mysql \
-                mysql:8.0
+                mysql:8.0 || docker start mysql-db || true
             fi
 
             # Esperar a que MySQL acepte conexiones (máx ~2 min)

@@ -7,6 +7,7 @@ on:
     paths:
       - "front_despacho/**"
       - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
 
 jobs:
   build-push-deploy:
@@ -43,7 +44,6 @@ jobs:
 
       # Pull desde ECR: el build se hace UNA vez en el runner de GitHub
       # (potente) y la t3.micro solo descarga la imagen lista (~25MB nginx).
-      # Nada de git clone + npm ci en una instancia de 1GB de RAM.
       - name: Deploy en EC2 (web, subred pública)
         uses: appleboy/ssh-action@v1.0.3
         with:
