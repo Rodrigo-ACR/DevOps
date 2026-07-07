@@ -42,65 +42,14 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      # La EC2 de backends está en la subred PRIVADA (10.0.2.x): GitHub Actions
-      # no puede llegar directo. Se usa la EC2 web pública como salto (jump host).
-      - name: Deploy en EC2 (app, subred privada)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.EC2_APP_PRIVATE_IP }}
-          username: ec2-user
-          key: ${{ secrets.EC2_SSH_KEY }}
-          proxy_host: ${{ secrets.EC2_PUBLIC_IP }}
-          proxy_username: ec2-user
-          proxy_key: ${{ secrets.EC2_SSH_KEY }}
-          command_timeout: 20m
-          script: |
-            set -e
+      - name: Configurar kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
 
-            # Login a ECR usando el IAM role de la instancia (LabInstanceProfile).
-            # No requiere credenciales en la EC2 ni tokens de sesión.
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | \
-              docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY_URL }}
-
-            # ── 1. Garantizar que MySQL esté corriendo ──────────────────
-            # A prueba de carreras: si el otro pipeline lo creó primero,
-            # el docker run falla pero el docker start lo levanta o ya está arriba.
-            if [ -z "$(docker ps -q -f name=^mysql-db$)" ]; then
-              docker rm mysql-db 2>/dev/null || true
-              docker run -d \
-                --name mysql-db \
-                --restart unless-stopped \
-                --network host \
-                -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} \
-                -e MYSQL_DATABASE=${{ secrets.DB_NAME }} \
-                -e MYSQL_USER=${{ secrets.DB_USERNAME }} \
-                -e MYSQL_PASSWORD=${{ secrets.DB_PASSWORD }} \
-                -v mysql_data:/var/lib/mysql \
-                mysql:8.0 || docker start mysql-db || true
-            fi
-
-            # Esperar a que MySQL acepte conexiones (máx ~2 min)
-            for i in $(seq 1 40); do
-              if docker exec mysql-db mysqladmin ping -h 127.0.0.1 --silent 2>/dev/null; then
-                echo "MySQL listo"; break
-              fi
-              echo "Esperando MySQL... ($i)"; sleep 3
-            done
-
-            # ── 2. Desplegar backend despachos ──────────────────────────
-            docker stop back-despachos || true
-            docker rm back-despachos || true
-            docker pull ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:latest
-            docker run -d \
-              --name back-despachos \
-              --restart unless-stopped \
-              --network host \
-              -e DB_ENDPOINT=127.0.0.1 \
-              -e DB_PORT=3306 \
-              -e DB_NAME=${{ secrets.DB_NAME }} \
-              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
-              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              ${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:latest
-
-            # Limpiar imágenes viejas para no llenar el disco de 8GB
-            docker image prune -af
+      - name: Deploy en EKS
+        run: |
+          kubectl set image deployment/back-despachos \
+            back-despachos=${{ secrets.ECR_REGISTRY_URL }}/${{ secrets.ECR_REPO_BACKEND }}:${{ github.sha }} \
+            -n innovatech
+          kubectl rollout status deployment/back-despachos -n innovatech --timeout=120s

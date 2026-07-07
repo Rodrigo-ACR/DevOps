@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: back-despachos
+  namespace: innovatech
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: back-despachos
+  template:
+    metadata:
+      labels:
+        app: back-despachos
+    spec:
+      containers:
+        - name: back-despachos
+          image: 161205462017.dkr.ecr.us-east-1.amazonaws.com/innovatech-backend-despachos:latest
+          ports:
+            - containerPort: 8081
+          env:
+            - name: DB_ENDPOINT
+              value: "mysql-service"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_NAME
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/despachos
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: back-despachos-service
+  namespace: innovatech
+spec:
+  selector:
+    app: back-despachos
+  ports:
+    - port: 8081
+      targetPort: 8081
+  type: ClusterIP
